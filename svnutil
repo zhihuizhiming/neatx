@@ -1,0 +1,147 @@
+#!/bin/bash
+
+# Copyright (C) 2009 Google Inc.
+
+set -e
+
+: ${SVNROOT:=https://neatx.googlecode.com/svn}
+
+usage() {
+  if [[ $# == 0 ]]; then
+    echo "Usage: $0 [tag|branch] <argument> ..." >&2
+  else
+    echo "Usage: $0 $@" >&2
+  fi
+  exit 1
+}
+
+check_version() {
+  local ver="$1" re="$2" exp="$3"
+
+  if ! [[ "$ver" =~ $re ]]; then
+    echo "Version has invalid format, expected '$exp'" >&2
+    exit 1
+  fi
+}
+
+svn_cp() {
+  local msg="$1" src="$2" dst="$3"
+  local tmpmsg cmd
+
+  tmpmsg=$(mktemp)
+  tempfiles="${tempfiles} ${tmpmsg}"
+
+  echo "$msg" > $tmpmsg
+
+  cmd="svn cp -F $tmpmsg $SVNROOT/$src $SVNROOT/$dst"
+
+  echo "Commit message:"
+  echo "---"
+  cat $tmpmsg
+  echo "---"
+  echo "Command to be run:"
+  echo "$cmd"
+
+  read -p "Continue [y/N]? " answer
+  if [[ "$answer" == [yY]* ]]; then
+    echo "Checking existence of $SVNROOT/$dst" >&2
+    if svn ls $SVNROOT/$dst
+    then
+      echo "$SVNROOT/$dst exists already." >&2
+      exit 1
+    fi
+
+    echo "Copying files" >&2
+    $cmd
+  fi
+}
+
+usage_tag() {
+  usage "tag <component> [trunk|branch] <version> <reviewer>"
+}
+
+create_tag() {
+  local comp="$1" from="$2" ver="$3" rev="$4"
+  local msg src dst
+
+  if [[ $# != 4 ||
+        -z "$comp" || -z "$from" || -z "$ver" || -z "$rev" ||
+        ! ( "$from" == trunk || "$from" == branch ) ]]; then
+    usage_tag
+  fi
+
+  # TODO: Version format checks for different components
+  check_version "$ver" '^[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$' x.y.z
+
+  if [[ "$from" == trunk ]]; then
+    echo "Tagging '$comp' with version '$ver'" >&2
+    src="trunk/$comp"
+  else
+    local bver=${ver%.*}
+    echo "Tagging '$comp-$bver' with version '$ver'" >&2
+    src="branches/$comp/$comp-$bver"
+  fi
+
+  dst="tags/$comp/$comp-$ver"
+
+  msg=$(
+    echo "Tag for $comp $ver release"
+    echo
+    echo "Reviewed-by: $rev"
+  )
+
+  svn_cp "$msg" "$src" "$dst"
+}
+
+usage_branch() {
+  usage "branch <component> <version> <reviewer>"
+}
+
+create_branch() {
+  local comp="$1" ver="$2" rev="$3"
+  local msg src dst
+
+  if [[ $# != 3 || -z "$comp" || -z "$ver" || -z "$rev" ]]; then
+    usage_branch
+  fi
+
+  # TODO: Version format checks for different components
+  check_version "$ver" '^[[:digit:]]+\.[[:digit:]]+$' x.y
+
+  echo "Branching '$comp' to version '$ver'" >&2
+  src="trunk/$comp"
+
+  dst="branches/$comp/$comp-$ver"
+
+  msg=$(
+    echo "Branch for $comp $ver"
+    echo
+    echo "Reviewed-by: $rev"
+  )
+
+  svn_cp "$msg" "$src" "$dst"
+}
+
+tempfiles=
+trap 'rm -f $tempfiles' EXIT
+
+if [[ $# == 0 ]]
+then
+  usage
+fi
+
+CMD="$1"
+shift
+
+case "$CMD" in
+  tag)
+    create_tag "$@"
+  ;;
+  branch)
+    create_branch "$@"
+  ;;
+  *)
+    echo "Unknown command '$CMD'." >&2
+    usage
+  ;;
+esac

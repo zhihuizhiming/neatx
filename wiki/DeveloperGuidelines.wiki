@@ -19,6 +19,10 @@ Development of new features for the next version (`X.Y`) goes on in `/trunk/neat
 
 Every released tarball has to be made from a tag (`/tags/neatx/neatx-X.Y.Z`) using `make distcheck`. More information on how to build releases can be found in [http://neatx.googlecode.com/svn/trunk/neatx/doc/DEVNOTES doc/DEVNOTES].
 
+= Committing changes =
+
+Once you got a positive confirmation for your patch, it can be committed to trunk. The commit message *must* contain a line starting with `Reviewed-by:` and the usernames of the people who reviewed it. If the patch is a bugfix it may need backporting to older branches.
+
 = Wiki updates =
 
 Wikis can be updated by members directly. Unfortunately, non-members need to send their wanted changes to the mailing list.
